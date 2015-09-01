@@ -198,6 +198,8 @@ sub
   <script type="text/javascript" src="scripts/jqplot/plugins/jqplot.enhancedLegendRenderer.min.js"></script>
   <script type="text/javascript" src="scripts/jqplot/plugins/jqplot.dateAxisRenderer.min.js"></script>
   <script type="text/javascript" src="scripts/jqplot/plugins/jqplot.pieRenderer.min.js"></script>
+  <script type="text/javascript" src="scripts/jqplot/plugins/jqplot.canvasTextRenderer.min.js"></script>
+  <script type="text/javascript" src="scripts/jqplot/plugins/jqplot.canvasAxisLabelRenderer.min.js"></script>
 
   <link rel="stylesheet" type="text/css" href="scripts/jqplot/jquery.jqplot.css" />
 </head>
@@ -530,7 +532,6 @@ function renderLinechart() {
 		cntData++;
 	}
 
-	//firstDate = new Date(firstDate * 1000).toString();
 	nbTicks = Math.round((lastDate - firstDate) / 86400)+1;
 	if(nbTicks > 12)
 		nbTicks = 12;
@@ -559,6 +560,12 @@ function renderLinechart() {
 	pueMin = Math.floor(pueMin - 0.1);
 
 	//lets create the line plot
+	//we use the data we generated before in linechartData as following:
+	//- UPS Input -> Power Sources loss
+	//- UPS Output -> Other
+	//- Other Mechanical -> Other Mechanical Devices
+	//- Cooling -> Cooling
+	//- IT -> IT
 
 	linechart=$.jqplot('linechart',  linechartData, {
 		seriesDefaults:{
@@ -566,9 +573,12 @@ function renderLinechart() {
 			fill:true,
 			fillAndStroke:true,
 		},
+		title : "<?php echo __("Cumulated consumptions and PUE"); ?>",
 		axes:{
 			yaxis:{
-				min:0
+				min:0,
+				label: "<?php echo __("Energy"); ?> (kW.h)",
+				labelRenderer: $.jqplot.CanvasAxisLabelRenderer
 			},
 			y2axis:{
 				min:pueMin,
@@ -576,7 +586,9 @@ function renderLinechart() {
 				tickInterval: (pueMax - pueMin) / 10,
 				tickOptions:{
 					showGridline: false
-				}
+				},
+				label: "PUE",
+                                labelRenderer: $.jqplot.CanvasAxisLabelRenderer
 			},
 			xaxis:{
 				min: new Date(firstDate * 1000).toString(),

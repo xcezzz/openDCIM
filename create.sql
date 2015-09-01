@@ -838,7 +838,8 @@ INSERT INTO fac_Config VALUES
 	('Phase1Color', '#000000', 'HexColor', 'string', '#000000'),
 	('Phase2Color', '#FF0000', 'HexColor', 'string', '#FF0000'),
 	('Phase3Color', '#0000FF', 'HexColor', 'string', '#0000FF'),
-	('ipmitool', '/usr/bin/ipmitool', 'path', 'string', '/usr/bin/ipmitool')
+	('ipmitool', '/usr/bin/ipmitool', 'path', 'string', '/usr/bin/ipmitool'),
+	('DaysBeforeCompression', '365', 'Days', 'int', '365')
 ;
 
 --
@@ -971,7 +972,7 @@ CREATE TABLE IF NOT EXISTS fac_ElectricalMeasure (
   Wattage1 INT(11) NOT NULL,
   Wattage2 INT(11) NOT NULL,
   Wattage3 INT(11) NOT NULL,
-  Energy INT(11) NOT NULL,
+  Energy DOUBLE NOT NULL,
   Date DATETIME NOT NULL,
   KEY MPID (MPID),
   UNIQUE KEY (MPID, Date)

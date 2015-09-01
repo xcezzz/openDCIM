@@ -173,16 +173,25 @@ class LogActions {
 			case "ModbusElectricalMeasurePoint":
 				$log->ObjectID=$object->MPID;
 				break;
+			case "IPMIElectricalMeasurePoint":
+				$log->ObjectID=$object->MPID;
+				break;
 			case "SNMPCoolingMeasurePoint":
 				$log->ObjectID=$object->MPID;
 				break;
 			case "ModbusCoolingMeasurePoint":
 				$log->ObjectID=$object->MPID;
 				break;
+			case "IPMICoolingMeasurePoint":
+				$log->ObjectID=$object->MPID;
+				break;
 			case "SNMPAirMeasurePoint":
 				$log->ObjectID=$object->MPID;
 				break;
 			case "ModbusAirMeasurePoint":
+				$log->ObjectID=$object->MPID;
+				break;
+			case "IPMIAirMeasurePoint":
 				$log->ObjectID=$object->MPID;
 				break;
 			case "MechanicalDevice":
@@ -333,7 +342,7 @@ class LogActions {
 		$this->Property=sanitize($this->Property);
 		$this->OldVal=sanitize($this->OldVal);
 		$this->NewVal=sanitize($this->NewVal);
-		$this->Time=date("Y-m-d H:i:s", strtotime($this->Time));
+		$this->Time=date("Y-m-d", strtotime($this->Time));
 	}
 
 	function ListUnique($sqlcolumn){

@@ -695,13 +695,13 @@ class ElectricalMeasurePoint extends MeasurePoint{
 			}
 		}
 		if(!is_null($values[3])) {
-			$m->Energy=@intval($values[3] * $this->EnergyMultiplier);
+			$m->Energy=@floatval($values[3] * $this->EnergyMultiplier);
 			$m->Date=date("Y-m-d H:i:s");
 			$m->CreateMeasure();
 		} else if(!is_null($values[0]) || !is_null($values[1]) || !is_null($values[2])) {
 			if(!is_null($lastMeasure->Energy)) {
-				$values[3] = intval($lastMeasure->Energy + (($m->Wattage1 + $m->Wattage2 + $m->Wattage3) * (strtotime(date("Y-m-d H:i:s")) - strtotime($lastMeasure->Date)) / 3600) / 1000);
-				$m->Energy = intval($values[3] * $this->EnergyMultiplier);
+				$values[3] = floatval($lastMeasure->Energy + (($m->Wattage1 + $m->Wattage2 + $m->Wattage3) * (strtotime(date("Y-m-d H:i:s")) - strtotime($lastMeasure->Date)) / 3600) / 1000);
+				$m->Energy = $values[3] * $this->EnergyMultiplier;
 			} else {
 				$m->Energy=0;
 			}
@@ -1221,7 +1221,7 @@ class IPMIElectricalMeasurePoint extends ElectricalMeasurePoint {
 				Sensor2=\"$this->Sensor2\",
 				Sensor3=\"$this->Sensor3\",
 				SensorEnergy=\"$this->SensorEnergy\"
-				WHERE MPID=$this->MPID;"; echo $sql;
+				WHERE MPID=$this->MPID;";
 			if(!$dbh->query($sql))
 				return false;
 		}
@@ -1299,7 +1299,7 @@ class ElectricalMeasure {
 		$this->Wattage1=intval($this->Wattage1);
 		$this->Wattage2=intval($this->Wattage2);
 		$this->Wattage3=intval($this->Wattage3);
-		$this->Energy=intval($this->Energy);
+		$this->Energy=floatval($this->Energy);
 		$this->Date=date("Y-m-d H:i:s",strtotime($this->Date));
 	}
 
@@ -1320,12 +1320,14 @@ class ElectricalMeasure {
 
 		$this->MakeSafe();
 
+		$energy = number_format($this->Energy, 3, ".", "");
+
 		$sql = "INSERT INTO fac_ElectricalMeasure SET
 				MPID=$this->MPID,
 				Wattage1=\"$this->Wattage1\",
 				Wattage2=\"$this->Wattage2\",
 				Wattage3=\"$this->Wattage3\",
-				Energy=\"$this->Energy\",
+				Energy=\"$energy\",
 				Date=\"$this->Date\";";
 			
 		if(!$dbh->exec($sql))
@@ -1360,7 +1362,7 @@ class ElectricalMeasure {
 
 		$this->MakeSafe();
 
-		$sql = "SELECT * FROM fac_ElectricalMeasure WHERE MPID=$this->MPID AND Date >= \"$start\" AND Date <= \"$end\" ORDER BY Date;";
+		$sql = "SELECT * FROM fac_ElectricalMeasure WHERE MPID=$this->MPID AND Date >= \"$start\" AND Date < \"$end\" ORDER BY Date;";
 
 		$measureList = array();
 		foreach($dbh->query($sql) as $row) {
@@ -1970,7 +1972,6 @@ class ModbusCoolingMeasurePoint extends CoolingMeasurePoint {
 
 		if($oldmp->ConnectionType != $this->ConnectionType || $oldmp->Type != $this->Type) {
 			$oldClass = MeasurePoint::$ConnectionTypeTab[$oldmp->ConnectionType].MeasurePoint::$TypeTab[$oldmp->Type]."MeasurePoint";
-			echo $oldClass." ".$oldmp->ConnectionType.$oldmp->Type;
 			$sql="DELETE FROM fac_".$oldClass." WHERE MPID=$this->MPID;";
 			if(!$dbh->exec($sql))
 				return false;
