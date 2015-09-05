@@ -708,14 +708,13 @@ $app->get( '/colorcode/:colorid', function($colorid) {
 		$response['error']=true;
 		$response['errorcode']=404;
 		$response['message']=__("No color code found with ColorID")." $cc->ColorID";
-		echoResponse(200,$response);
 	}else{
 		$response['error']=false;
 		$response['errorcode']=200;
 		$response['colorcode'][$cc->ColorID]=$cc;
-		
-		echoResponse(200,$response);
 	}
+
+	echoResponse(200,$response);
 });
 
 //
@@ -733,6 +732,72 @@ $app->get( '/colorcode/:colorid/timesused', function($colorid) {
 	echoResponse(200,$response);
 });
 
+
+//
+//	URL:	/api/v1/devicetemplate
+//	Method:	GET
+//	Params: none	
+//	Returns: All available device templates
+//
+
+$app->get( '/devicetemplate', function() use ($app) {
+	$dt=new DeviceTemplate();
+	foreach($app->request->get() as $prop => $val){
+		$dt->$prop=$val;
+	}
+
+	$response['error']=false;
+	$response['errorcode']=200;
+	$response['devicetemplate']=$dt->Search();
+
+	echoResponse(200,$response);
+});
+
+//
+//	URL:	/api/v1/devicetemplate/:templateid
+//	Method:	GET
+//	Params: templateid
+//	Returns: Device template for templateid
+//
+
+$app->get( '/devicetemplate/:templateid', function($templateid) use ($app) {
+	$dt=new DeviceTemplate();
+	$dt->TemplateID=$templateid;
+	if(!$dt->GetTemplateByID()){
+		$response['error']=true;
+		$response['errorcode']=404;
+		$response['message']=__("No template found with TemplateID: ")." $templateid";
+	}else{
+		$response['error']=false;
+		$response['errorcode']=200;
+		$response['template']=$dt;
+	}
+
+	echoResponse(200,$response);
+});
+
+//
+//	URL:	/api/v1/devicetemplate/:templateid/dataports
+//	Method:	GET
+//	Params: templateid
+//	Returns: Data ports defined for device template with templateid
+//
+
+$app->get( '/devicetemplate/:templateid/dataports', function($templateid) use ($app) {
+	$tp=new TemplatePorts();
+	$tp->TemplateID=$templateid;
+	if(!$ports=$tp->getPorts()){
+		$response['error']=true;
+		$response['errorcode']=404;
+		$response['message']=__("No ports found for TemplateID: ")." $templateid";
+	}else{
+		$response['error']=false;
+		$response['errorcode']=200;
+		$response['dataports']=$ports;
+	}
+
+	echoResponse(200,$response);
+});
 
 //
 //	URL:	/api/v1/devicetemplate/image
@@ -776,66 +841,27 @@ $app->get( '/manufacturer/:manufacturerid', function($manufacturerid) {
 });
 
 //
-//	URL:	/api/v1/manufacturer/byname/:name
+//	URL:	/api/v1/manufacturer
 //	Method:	GET
-//	Params:	name (passed in URL)
-//	Returns:  Defined manufacturers matching : name
+//	Params:	none
+//	Returns:  All defined manufacturers 
 //
 
-$app->get( '/manufacturer/byname/:name', function( $name ) {
-	$manu=new Manufacturer();
-	$manu->Name=$name;
-
-	if(!$manu->GetManufacturerByName()){
-		$response['error']=true;
-		$response['errorcode']=404;
-		$response['message']=__("No manufacturer found with Name")." $manu->Name";
-		echoResponse(404,$response);
-	}else{
-		$response['error']=false;
-		$response['errorcode']=200;
-		$response['manufacturer']=$manu;
-		
-		echoResponse(200,$response);
+$app->get( '/manufacturer', function() use ($app) {
+	$man=new Manufacturer();
+	
+	$response['error']=false;
+	$response['errorcode']=200;
+	foreach($app->request->get() as $prop => $val){
+		$man->$prop=$val;
 	}
+	$response['manufacturer']=$man->GetManufacturerList();
+
+	echoResponse(200,$response);
 });
 
-//
-//	URL:	/api/v1/template/bymodelandmanufacturer
-//	Method:	GET
-//	Params:	model, manufacturerid (passed in query)
-//	Returns:  Defined manufacturers matching : model and manufacturer
-//
 
-$app->get( '/devicetemplate/bymodelandmanufacturer', function() {
-	if(!isset($_GET["model"])) {
-		$response['error']=true;
-		$response['errorcode']=400;
-		$response['message']=__("Model needed");
-		echoResponse(400,$response);
-	}
-	if(!isset($_GET["manufacturerid"])) {
-		$response['error']=true;
-		$response['errorcode']=400;
-		$response['message']=__("ManufacturerID needed");
-		echoResponse(400,$response);
-	}
-	$template=new DeviceTemplate();
-	$template->ManufacturerID=$_GET["manufacturerid"];
-	$template->Model = $_GET["model"];
-	if(!$template->GetTemplateByModelAndManufacturer()){
-		$response['error']=true;
-		$response['errorcode']=404;
-		$response['message']=__("No template found with Model")." $template->Model ".__("and ManufacturerID")." $template->ManufacturerID";
-		echoResponse(404,$response);
-	}else{
-		$response['error']=false;
-		$response['errorcode']=200;
-		$response['devicetemplate']=$template;
-		
-		echoResponse(200,$response);
-	}
-});
+
 
 /**
   *
