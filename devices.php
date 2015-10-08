@@ -14,7 +14,7 @@
 	if(isset($_POST['snmptest'])){
 		// Parse through the post data and pull in site defaults if necessary
 		$community=($_POST['SNMPCommunity']=="")?$config->ParameterArray["SNMPCommunity"]:$_POST['SNMPCommunity'];
-		$version=($_POST['SNMPVersion']=="")?$config->ParameterArray["SNMPVersion"]:$_POST['SNMPVersion'];
+		$version=($_POST['SNMPVersion']=="" || $_POST['SNMPVersion']=="default")?$config->ParameterArray["SNMPVersion"]:$_POST['SNMPVersion'];
 		$v3SecurityLevel=($_POST['v3SecurityLevel']=="")?$config->ParameterArray["v3SecurityLevel"]:$_POST['v3SecurityLevel'];
 		$v3AuthProtocol=($_POST['v3AuthProtocol']=="")?$config->ParameterArray["v3AuthProtocol"]:$_POST['v3AuthProtocol'];
 		$v3AuthPassphrase=($_POST['v3AuthPassphrase']=="")?$config->ParameterArray["v3AuthPassphrase"]:$_POST['v3AuthPassphrase'];
@@ -751,6 +751,11 @@
 						'Patch Panel' => __("Patch Panel"),
 						'Sensor' => __("Sensor"),
 						);
+
+		/* If you only have rear slots, don't make the user click Backside, which they forget to do half the time, anyway */
+		if ( $pDev->ChassisSlots < 1 && $pDev->RearChassisSlots > 0 ) {
+			$dev->BackSide = 1;
+		}
 	}else{
 		$devarray=array('Server' => __("Server"),
 						'Appliance' => __("Appliance"),
@@ -1517,6 +1522,19 @@ print "		var dialog=$('<div>').prop('title',\"".__("Verify Delete Device")."\").
 <?php
 		}
 ?>
+		$('select[name=ParentDevice],#BackSide').change(function(){
+			var slotcount=($('#BackSide:checked').length)?'rearchassisslots':'chassisslots';
+			var maxval=$('select[name=ParentDevice] option:selected').data(slotcount);
+			var posclass=$('#Position').attr('class');
+			$('#Position').attr('class',posclass.replace(/max\[([0-9]).*?\]/gi,"max["+maxval+"]")).trigger('focusout');
+			// Make a pointer to the hidden cabinetid input object
+			var hdn_cabinetid=$('input[name=CabinetID]');
+			hdn_cabinetid.val($('select[name=ParentDevice] option:selected').data('cabinetid'));
+			// Match the cabinet id to something over in the menu so we can show it on the page
+			var rack=$('#datacenters a[href$="cabinetid='+hdn_cabinetid.val()+'"]');
+			// Update the hidden cabinet id field to match the new parent device and show the name
+			hdn_cabinetid.parent('div').text(rack.text()).append(hdn_cabinetid);
+		});
 
 		$('#Reservation').change(function(){
 			if(!$(this).prop("checked")){
@@ -1536,6 +1554,7 @@ print "		var dialog=$('<div>').prop('title',\"".__("Verify Delete Device")."\").
 <?php echo '				',__("Yes"),': function(){'; ?>
 						$(this).dialog("destroy");
 						form.append('<input type="hidden" name="'+btn.attr("name")+'" value="'+btn.val()+'">');
+						form.validationEngine("detach");
 						form.submit();
 					},
 <?php echo '				',__("No"),': function(){'; ?>
@@ -1771,7 +1790,7 @@ echo '
 
 			foreach($parentList as $parDev){
 				if($pDev->DeviceID==$parDev->DeviceID){$selected=" selected";}else{$selected="";}
-				print "\t\t\t\t<option value=\"$parDev->DeviceID\"$selected>$parDev->Label</option>\n";
+				print "\t\t\t\t<option value=\"$parDev->DeviceID\"$selected data-ChassisSlots=$parDev->ChassisSlots data-RearChassisSlots=$parDev->RearChassisSlots data-CabinetID=$parDev->Cabinet>$parDev->Label</option>\n";
 			}
 			print "\t\t\t</select></div>\n";
 		}

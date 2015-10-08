@@ -221,6 +221,13 @@ class DataCenter {
 		$this->DrawingFileName=stripslashes($this->DrawingFileName);
 	}
 
+	public function __construct($dcid=false){
+		if($dcid){
+			$this->DataCenterID=intval($dcid);
+		}
+		return $this;
+	}
+
 	static function RowToObject($row){
 		$dc=New DataCenter();
 		$dc->DataCenterID=$row["DataCenterID"];
@@ -818,6 +825,9 @@ class DeviceTemplate {
 		$validDeviceTypes=array('Server','Appliance','Storage Array','Switch','Chassis','Patch Panel','Physical Infrastructure','CDU','Sensor');
 		$validSNMPVersions=array(1,'2c',3);
 
+		// Instead of defaulting to v2c for snmp we'll default to whatever the system default is
+		global $config;
+
 		$this->TemplateID=intval($this->TemplateID);
 		$this->ManufacturerID=intval($this->ManufacturerID);
 		$this->Model=sanitize($this->Model);
@@ -832,7 +842,7 @@ class DeviceTemplate {
 	    $this->RearPictureFile=sanitize($this->RearPictureFile);
 		$this->ChassisSlots=intval($this->ChassisSlots);
 		$this->RearChassisSlots=intval($this->RearChassisSlots);
-		$this->SNMPVersion=(in_array($this->SNMPVersion, $validSNMPVersions))?$this->SNMPVersion:"2c";
+		$this->SNMPVersion=(in_array($this->SNMPVersion, $validSNMPVersions))?$this->SNMPVersion:$config->ParameterArray["SNMPVersion"];
 		$this->GlobalID=intval($this->GlobalID);
 		$this->ShareToRepo=intval($this->ShareToRepo);
 		$this->KeepLocal=intval($this->KeepLocal);
@@ -845,7 +855,7 @@ class DeviceTemplate {
 	    $this->RearPictureFile=stripslashes($this->RearPictureFile);
 	}
 
-	static function RowToObject($row){
+	static function RowToObject($row,$extendmodel=true){
 		$Template=new DeviceTemplate();
 		$Template->TemplateID=$row["TemplateID"];
 		$Template->ManufacturerID=$row["ManufacturerID"];
@@ -868,6 +878,25 @@ class DeviceTemplate {
         $Template->MakeDisplay();
 		$Template->GetCustomValues();
 
+		if($extendmodel){
+			// Extend our device model
+			if($Template->DeviceType=="CDU"){
+				$cdut=new CDUTemplate();
+				$cdut->TemplateID=$Template->TemplateID;
+				$cdut->GetTemplate();
+				foreach($cdut as $prop => $val){
+					$Template->$prop=$val;
+				}
+			}
+			if($Template->DeviceType=="Sensor"){
+				$st=new SensorTemplate();
+				$st->TemplateID=$Template->TemplateID;
+				$st->GetTemplate();
+				foreach($st as $prop => $val){
+					$Template->$prop=$val;
+				}
+			}
+		}
 		return $Template;
 	}
   
@@ -913,16 +942,22 @@ class DeviceTemplate {
 			if($this->DeviceType=="CDU"){
 				// If this is a cdu make the corresponding other hidden template
 				$cdut=new CDUTemplate();
-				$cdut->Model=$this->Model;
-				$cdut->ManufacturerID=$this->ManufacturerID;
+				foreach($cdut as $prop => $val){
+					if(isset($this->$prop)){
+						$cdut->$prop=$val;
+					}
+				}
 				$cdut->CreateTemplate($this->TemplateID);
 			}
 
 			if($this->DeviceType=="Sensor"){
 				// If this is a sensor make the corresponding other hidden template
 				$st=new SensorTemplate();
-				$st->Model=$this->Model;
-				$st->ManufacturerID=$this->ManufacturerID;
+				foreach($st as $prop => $val){
+					if(isset($this->$prop)){
+						$st->$prop=$val;
+					}
+				}
 				$st->CreateTemplate($this->TemplateID);
 			}
 
@@ -995,9 +1030,12 @@ class DeviceTemplate {
 	}
 
 	function Search($indexedbyid=false,$loose=false){
-		// Store the value of devicetype before we muck with it and SNMPVersion
-		$ot=$this->DeviceType;
-		$ov=$this->SNMPVersion;
+		// Store any values that have been added before we make them safe 
+		foreach($this as $prop => $val){
+			if(isset($val)){
+				$o[$prop]=$val;
+			}
+		}
 
 		// Make everything safe for us to search with
 		$this->MakeSafe();
@@ -1008,18 +1046,8 @@ class DeviceTemplate {
 			$method=($loose)?" LIKE \"%$val%\"":"=\"$val\"";
 			$sql.=" AND a.$prop$method";
 		}
-		foreach($this as $prop => $val){
-			// We force DeviceType to a known value so this is to check if they wanted to search for the default
-			if($prop=="DeviceType" && $val=="Server" && $ot!="Server"){
-				continue;
-			}
-			// We force the SNMPVersion to 2c above so this is to check if they wanted to search for the default
-			if($prop=="SNMPVersion" && $val=="2c" && $ov!="2c"){
-				continue;
-			}
-			if($val){
-				findit($prop,$val,$sqlextend,$loose);
-			}
+		foreach($o as $prop => $val){
+			findit($prop,$this->$prop,$sqlextend,$loose);
 		}
 
 		// The join is purely to sort the templates by the manufacturer's name
