@@ -553,6 +553,67 @@ class PowerPorts {
 		
 		return $portList;
 	}
+
+	static function getConnectedPortList($DeviceID){
+		global $dbh;
+		
+		$dev=new Device();
+		$dev->DeviceID=$DeviceID;
+		if(!$dev->GetDevice()){
+			return false;	// This device doesn't exist
+		}
+		
+		$sql="SELECT * FROM fac_PowerPorts WHERE DeviceID=$dev->DeviceID and ConnectedDeviceID>0";
+		
+		$portList=array();
+		foreach($dbh->query($sql) as $row){
+			$portList[$row['PortNumber']]=PowerPorts::RowToObject($row);
+		}
+		
+		if( sizeof($portList)==0 && $dev->DeviceType!="Physical Infrastructure" ){
+			// somehow this device doesn't have ports so make them now
+			$portList=PowerPorts::createPorts($dev->DeviceID);
+		}
+		
+		return $portList;
+	}
+
+	function Search($indexedbyid=false,$loose=false){
+		global $dbh;
+		// Store any values that have been added before we make them safe 
+		foreach($this as $prop => $val){
+			if(isset($val)){
+				$o[$prop]=$val;
+			}
+		}
+
+		// Make everything safe for us to search with
+		$this->MakeSafe();
+
+		// This will store all our extended sql
+		$sqlextend="";
+		foreach($o as $prop => $val){
+			extendsql($prop,$this->$prop,$sqlextend,$loose);
+		}
+		$sql="SELECT * FROM fac_PowerPorts $sqlextend ORDER BY DeviceID, PortNumber ASC;";
+
+		$portList=array();
+
+		foreach($dbh->query($sql) as $portRow){
+			if($indexedbyid){
+				$portList[$portRow["DeviceID"].$portRow["PortNumber"]]=PowerPorts::RowToObject($portRow);
+			}else{
+				$portList[]=PowerPorts::RowToObject($portRow);
+			}
+		}
+
+		return $portList;
+	}
+
+	// Make a simple reference to a loose search
+	function LooseSearch($indexedbyid=false){
+		return $this->Search($indexedbyid,true);
+	}
 }
 
 class PowerConnection {

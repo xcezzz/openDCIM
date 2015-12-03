@@ -762,6 +762,13 @@ foreach($dcaList as $dca) {
 			$checked=" checked";
 		}
 		echo __("Default:").' <input type="checkbox" name="tdca[',$dca->AttributeID,'][value]" ',$checked,'>';
+	} else if ($dca->AttributeType=="set") {
+		echo '<select name="tdca[',$dca->AttributeID,'][value]">';
+		foreach(explode(',',$dca->DefaultValue) as $dcaValue){
+			$selected=($templatedcaValue==$dcaValue)?' selected':'';
+			print "\n\t<option value=\"$dcaValue\"$selected>$dcaValue</option>";
+		}
+		echo '</select>';
 	} else {
 		$validation="";
 		if($templatedcaChecked != "" && $dca->AttributeType!="string" && $dca->AttributeType!="checked") {
@@ -789,7 +796,7 @@ foreach($dcaList as $dca) {
 				var type = $("#"+typeid).val();
 				if(this.checked){
 					$("#"+inputid).removeClass();
-					if(type!="checkbox" && type!="string"){
+					if(type!="checkbox" && type!="string" && type!="set"){
 						$("#"+inputid).addClass("validate[custom["+type+"]]");
 					}
 				} else {

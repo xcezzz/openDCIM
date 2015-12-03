@@ -553,6 +553,7 @@
 					}
 				}
 
+				// This shouldn't be needed now that we have the pdu model getting extended onto the device model. and we can just reference pdu as a variable to dev
 				if($dev->DeviceType=="CDU" || (isset($_POST['DeviceType']) && $_POST['DeviceType']=="CDU")){
 					$pdu->PDUID=$dev->DeviceID;
 					$pdu->GetPDU();
@@ -801,7 +802,7 @@
 		$ESX->DeviceID=$DeviceID;
 		$vmList=$ESX->GetDeviceInventory();
 
-		print "\n<div class=\"table border\"><div><div>".__("VM Name")."</div><div>".__("Status")."</div><div>".__("Owner")."</div><div>".__("Last Updated")."</div></div>\n";
+		print "\n<div class=\"table border\"><div><div>".__("VM Name")."</div><div>".__("Status")."</div><div>".__("Owner")."</div><div>".__("Primary Contact")."</div><div>".__("Last Updated")."</div></div>\n";
 		foreach($vmList as $vmRow){
 			$onOff=(preg_match('/off/i',$vmRow->vmState))?'off':'on';
 			$Dept=new Department();
@@ -811,7 +812,15 @@
 			}else{
 				$Dept->Name=__("Unknown");
 			}
-			print "<div><div>$vmRow->vmName</div><div class=\"$onOff\">$vmRow->vmState</div><div><a href=\"updatevmowner.php?vmindex=$vmRow->VMIndex\">$Dept->Name</a></div><div>$vmRow->LastUpdated</div></div>\n";
+			if ( $vmRow->PrimaryContact > 0 ) {
+				$con = new People();
+				$con->PersonID = $vmRow->PrimaryContact;
+				$con->GetPerson();
+				$PCName = $con->LastName . ", " . $con->FirstName;
+			} else {
+				$PCName = __("Unknown");
+			}
+			print "<div><div>$vmRow->vmName</div><div class=\"$onOff\">$vmRow->vmState</div><div><a href=\"updatevmowner.php?vmindex=$vmRow->VMIndex\">$Dept->Name</a></div><div><a href=\"updatevmowner.php?vmindex=$vmRow->VMIndex\">$PCName</a></div><div>$vmRow->LastUpdated</div></div>\n";
 		}
 		echo '</div> <!-- END div.table -->';
 	}
@@ -877,6 +886,13 @@
 					$checked = " checked";
 				}
 				echo '<div><input type="checkbox" name="',$inputname,'" id="',$inputname,'"',$checked,'></div>';
+			} else if ($cvtype=="set") {
+				echo '<div><select name="',$inputname,'" id="',$inputname,'">';
+				foreach(explode(',',$dcaList[$customkey]->DefaultValue) as $dcaValue){
+					$selected=($customdata["value"]==$dcaValue)?' selected':'';
+					print "\n\t<option value=\"$dcaValue\"$selected>$dcaValue</option>";
+				}
+				echo '</select></div>';
 			} else {
 				echo '<div><input type="text"',$validation,' name="',$inputname,'" id="',$inputname,'" value="',$customdata["value"],'"></div>';
 
@@ -2204,6 +2220,20 @@ echo '	<div class="table">
 <div><div>
 <div class="table style">
 <?php
+// Button block used for selection limiter
+$connectioncontrols=($dev->DeviceID>0 && !empty($portList))?'
+<span style="display: inline-block; vertical-align: super;">'.__("Limit device selection to").':</span>
+<div id="connection-limiter" data-role="controlgroup" data-type="horizontal">
+	<input type="radio" name="connection-limiter" id="radio-choice-1" value="row" />
+	<label for="radio-choice-1">Row</label>
+	<input type="radio" name="connection-limiter" id="radio-choice-2" value="zone" />
+	<label for="radio-choice-2">Zone</label>
+	<input type="radio" name="connection-limiter" id="radio-choice-3" value="datacenter" />
+	<label for="radio-choice-3">Datacenter</label>
+	<input type="radio" name="connection-limiter" id="radio-choice-4" value="global" />
+	<label for="radio-choice-4">Global</label>
+</div>':'';
+
 	// Operational log
 	// This is an optional block if logging is enabled
 	if(class_exists('LogActions') && $dev->DeviceID >0){
@@ -2224,8 +2254,10 @@ echo '	<div class="table">
 		// The input box and button
 		print "\t\t\t<div><div><button type=\"button\">Add note</button><div><input /></div></div></div>\n";
 
+
 		print "\t\t  </div></div>\n\t\t</div>\n";
-		print "\t\t<!-- Spacer --><div><div>&nbsp;</div><div></div></div><!-- END Spacer -->\n"; // spacer row
+		//hide the connection limiters if not on a patch panel.
+		print "\t\t<!-- Spacer --><div><div>&nbsp;</div><div>".(($dev->DeviceType=='Patch Panel')?$connectioncontrols:'')."</div></div><!-- END Spacer -->\n"; // spacer row
 	}
 
 	//HTML content condensed for PHP logic clarity.
@@ -2265,18 +2297,6 @@ echo '	<div class="table">
 					<div data-default=\"$cord->Notes\">$cord->Notes</div>
 				</div>\n";
 			}
-$connectioncontrols=($dev->DeviceID>0 && !empty($portList))?'
-<span style="display: inline-block; vertical-align: super;">'.__("Limit device selection to").':</span>
-<div id="connection-limiter" data-role="controlgroup" data-type="horizontal">
-	<input type="radio" name="connection-limiter" id="radio-choice-1" value="row" />
-	<label for="radio-choice-1">Row</label>
-	<input type="radio" name="connection-limiter" id="radio-choice-2" value="zone" />
-	<label for="radio-choice-2">Zone</label>
-	<input type="radio" name="connection-limiter" id="radio-choice-3" value="datacenter" />
-	<label for="radio-choice-3">Datacenter</label>
-	<input type="radio" name="connection-limiter" id="radio-choice-4" value="global" />
-	<label for="radio-choice-4">Global</label>
-</div>':'';
 
 			print "			</div><!-- END div.table --></div>\n		</div><!-- END power connections -->\n		<!-- Spacer --><div><div>&nbsp;</div><div>$connectioncontrols</div></div><!-- END Spacer -->\n";
 

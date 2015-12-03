@@ -768,13 +768,13 @@ $app->get( '/devicetemplate/:templateid', function($templateid) use ($app) {
 });
 
 //
-//	URL:	/api/v1/devicetemplate/:templateid/dataports
+//	URL:	/api/v1/devicetemplate/:templateid/dataport
 //	Method:	GET
 //	Params: templateid
 //	Returns: Data ports defined for device template with templateid
 //
 
-$app->get( '/devicetemplate/:templateid/dataports', function($templateid) use ($app) {
+$app->get( '/devicetemplate/:templateid/dataport', function($templateid) use ($app) {
 	$tp=new TemplatePorts();
 	$tp->TemplateID=$templateid;
 	if(!$ports=$tp->getPorts()){
@@ -784,20 +784,20 @@ $app->get( '/devicetemplate/:templateid/dataports', function($templateid) use ($
 	}else{
 		$response['error']=false;
 		$response['errorcode']=200;
-		$response['dataports']=$ports;
+		$response['dataport']=$ports;
 	}
 
 	echoResponse(200,$response);
 });
 
 //
-//	URL:	/api/v1/devicetemplate/:templateid/dataports/:portnumber
+//	URL:	/api/v1/devicetemplate/:templateid/dataport/:portnumber
 //	Method:	GET
 //	Params: templateid. portnumber
 //	Returns: Single data port defined for device template with templateid and portnum
 //
 
-$app->get( '/devicetemplate/:templateid/dataports/:portnumber', function($templateid,$portnumber) use ($app) {
+$app->get( '/devicetemplate/:templateid/dataport/:portnumber', function($templateid,$portnumber) use ($app) {
 	$tp=new TemplatePorts();
 	$tp->TemplateID=$templateid;
 	$tp->PortNumber=$portnumber;
@@ -808,20 +808,20 @@ $app->get( '/devicetemplate/:templateid/dataports/:portnumber', function($templa
 	}else{
 		$response['error']=false;
 		$response['errorcode']=200;
-		$response['dataports']=$tp;
+		$response['dataport']=$tp;
 	}
 
 	echoResponse(200,$response);
 });
 
 //
-//	URL:	/api/v1/devicetemplate/:templateid/powerports
+//	URL:	/api/v1/devicetemplate/:templateid/powerport
 //	Method:	GET
 //	Params: templateid
 //	Returns: Power ports defined for device template with templateid
 //
 
-$app->get( '/devicetemplate/:templateid/powerports', function($templateid) use ($app) {
+$app->get( '/devicetemplate/:templateid/powerport', function($templateid) use ($app) {
 	$tp=new TemplatePowerPorts();
 	$tp->TemplateID=$templateid;
 	if(!$ports=$tp->getPorts()){
@@ -831,7 +831,7 @@ $app->get( '/devicetemplate/:templateid/powerports', function($templateid) use (
 	}else{
 		$response['error']=false;
 		$response['errorcode']=200;
-		$response['powerports']=$ports;
+		$response['powerport']=$ports;
 	}
 
 	echoResponse(200,$response);
@@ -1087,11 +1087,10 @@ $app->post( '/device/:deviceid', function($deviceid) use ($app) {
 //	Returns: true/false on update operation 
 //
 
-$app->put( '/devicetemplate/:templateid', function($templateid) use ($app) {
-	$dt=new DeviceTemplate();
+$app->post( '/devicetemplate/:templateid', function($templateid) use ($app,$person) {
+	$dt=new DeviceTemplate($templateid);
 	// This should be in the commit data but if we get a smartass saying it's in the URL
-	$dt->templateid=$templateid;
-
+	$dt->TemplateID=$templateid;
 	if(!$person->WriteAccess){
 		$response['error']=true;
 		$response['errorcode']=403;
@@ -1127,7 +1126,7 @@ $app->put( '/devicetemplate/:templateid', function($templateid) use ($app) {
 //	Returns: true/false on update operation
 //
 
-$app->put( '/devicetemplate/:templateid/dataports/:portnumber', function($templateid,$portnumber) use ($app) {
+$app->post( '/devicetemplate/:templateid/dataport/:portnumber', function($templateid,$portnumber) use ($app,$person) {
 	$tp=new TemplatePorts();
 	$tp->TemplateID=$templateid;
 	$tp->PortNumber=$portnumber;
@@ -1152,7 +1151,7 @@ $app->put( '/devicetemplate/:templateid/dataports/:portnumber', function($templa
 			}else{
 				$response['error']=false;
 				$response['errorcode']=200;
-				$response['dataports']=$tp;
+				$response['dataport']=$tp;
 			}
 		}
 	}
@@ -1160,6 +1159,41 @@ $app->put( '/devicetemplate/:templateid/dataports/:portnumber', function($templa
 	echoResponse(200,$response);
 });
 
+//
+//	URL:	/api/v1/manufacturer
+//	Method:	POST
+//	Params:	none
+//	Returns: true/false on update operation
+//
+
+$app->post( '/manufacturer/:manufacturerid', function($manufacturerid) use ($app,$person) {
+	$man=new Manufacturer();
+	$man->ManufacturerID=$manufacturerid;
+	
+	$response['error']=true;
+	$response['errorcode']=404;
+
+	if(!$person->SiteAdmin){
+		$response['errorcode']=403;
+		$response['message']=__("Unauthorized");
+	}else{
+		if(!$man->GetManufacturerByID()){
+			$response['message']=__("Manufacturer not found with id: ")." $manufacturerid";
+		}else{
+			foreach($app->request->post() as $prop => $val){
+				$man->$prop=$val;
+			}
+			if(!$man->UpdateManufacturer()){
+				$response['message']=__("Manufacturer update failed");
+			}else{
+				$response['error']=false;
+				$response['errorcode']=200;
+			}
+		}
+	}
+
+	echoResponse(200,$response);
+});
 
 /**
   *
@@ -1302,6 +1336,51 @@ $app->put( '/device/:devicelabel', function($devicelabel) use ($app) {
 });
 
 //
+//	Copy an existing device to the new position, adjusting the name automagically per rules in the CopyDevice method
+//	URL:	/api/v1/device/:deviceid/copyto/:newposition
+//	Method:	PUT
+//	Params:	deviceid (passed in URL)
+//		Required: Label, cabinetid
+//		Optional: everything else
+//	Returns: record as created 
+//
+
+$app->put( '/device/:deviceid/copyto/:newposition', function($deviceid, $newposition) use ($app) {
+	$dev=new Device();
+	$dev->DeviceID=$deviceid;
+	$dev->GetDevice();
+
+	$cab=new Cabinet();
+	$cab->CabinetID=$dev->Cabinet;
+	if(!$cab->GetCabinet()){
+		$response['error']=true;
+		$response['errorcode']=404;
+		$response['message']=__("Cabinet not found");
+	}else{
+		if($cab->Rights!="Write"){
+			$response['error']=true;
+			$response['errorcode']=403;
+			$response['message']=__("Unauthorized");
+		}else{
+			if(!$dev->CopyDevice(null,$newposition)){
+				$response['error']=true;
+				$response['errorcode']=404;
+				$response['message']=__("Device creation failed");
+			}else{
+				// refresh the model in case we extended it elsewhere
+				$dev=new Device($dev->DeviceID);
+				$dev->GetDevice();
+				$response['error']=false;
+				$response['errorcode']=200;
+				$response['device']=$dev;
+			}
+		}
+	}
+
+	echoResponse(200,$response);
+});
+
+//
 //	URL:	/api/v1/devicetemplate/:model
 //	Method:	PUT
 //	Params:	
@@ -1310,7 +1389,7 @@ $app->put( '/device/:devicelabel', function($devicelabel) use ($app) {
 //	Returns: record as created 
 //
 
-$app->put( '/devicetemplate/:model', function($model) use ($app) {
+$app->put( '/devicetemplate/:model', function($model) use ($app,$person) {
 	$dt=new DeviceTemplate();
 	// This isn't super great and could lead to some weirdness in the logging but 
 	// we'll make it more specific later if it becomes and issue.
@@ -1351,7 +1430,7 @@ $app->put( '/devicetemplate/:model', function($model) use ($app) {
 //	Returns: record as created 
 //
 
-$app->put( '/devicetemplate/:templateid/dataports/:portnum', function($templateid,$portnum) use ($app) {
+$app->put( '/devicetemplate/:templateid/dataport/:portnum', function($templateid,$portnum) use ($app,$person) {
 	$tp=new TemplatePorts();
 	foreach($app->request->put() as $prop => $val){
 		$tp->$prop=$val;
@@ -1372,7 +1451,44 @@ $app->put( '/devicetemplate/:templateid/dataports/:portnum', function($templatei
 		}else{
 			$response['error']=false;
 			$response['errorcode']=200;
-			$response['dataports']=$tp;
+			$response['dataport']=$tp;
+		}
+	}
+
+	echoResponse(200,$response);
+});
+
+//
+//	URL:	/api/v1/devicetemplate/:templateid/powerport/:portnum
+//	Method:	PUT
+//	Params:	
+//		Required: templateid, portnum, portlabel
+//		Optional: everything else
+//	Returns: record as created 
+//
+
+$app->put( '/devicetemplate/:templateid/powerport/:portnum', function($templateid,$portnum) use ($app,$person) {
+	$tp=new TemplatePowerPorts();
+	foreach($app->request->put() as $prop => $val){
+		$tp->$prop=$val;
+	}
+	// This should be in the commit data but if we get a smartass saying it's in the URL
+	$tp->TemplateID=$templateid;
+	$tp->PortNumber=$portnum;
+
+	if(!$person->WriteAccess){
+		$response['error']=true;
+		$response['errorcode']=403;
+		$response['message']=__("Unauthorized");
+	}else{
+		if(!$tp->CreatePort()){
+			$response['error']=true;
+			$response['errorcode']=404;
+			$response['message']=__("Device template port creation failed");
+		}else{
+			$response['error']=false;
+			$response['errorcode']=200;
+			$response['powerport']=$tp;
 		}
 	}
 

@@ -14,6 +14,24 @@ INSERT INTO fac_Config SET Parameter='RCIHigh', Value='80', UnitOfMeasure='degre
 INSERT INTO fac_Config SET Parameter='RCILow', Value='65', UnitOfMeasure='degrees', ValType='float', DefaultVal='65';
 
 --
+-- Make UserID unique in the fac_People table
+--
+
+ALTER TABLE fac_People DROP INDEX UserID;
+ALTER TABLE fac_People ADD UNIQUE (UserID);
+
+--
+-- Add indexes to the Notes fields of the ports tables
+--
+ALTER TABLE fac_Ports ADD INDEX (Notes);
+ALTER TABLE fac_PowerPorts ADD INDEX (Notes);
+
+--
+-- Add PrimaryContact to VMInventory
+--
+ALTER TABLE fac_VMInventory ADD COLUMN PrimaryContact int(11) NOT NULL;
+
+--
 -- Bump up the database version
 --
 -- UPDATE fac_Config set Value='4.1' WHERE Parameter='Version';

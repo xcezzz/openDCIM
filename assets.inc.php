@@ -1399,6 +1399,19 @@ class Device {
 					$dev->$prop=$val;
 				}
 			}
+			// This will extend the device model but isn't currently being used anywhere
+			$dev->GetCustomValues();
+			if(count($dev->CustomValues)){
+				$dcaList=DeviceCustomAttribute::GetDeviceCustomAttributeList();
+				foreach($dev->CustomValues as $dcaid => $val){
+					$label=$dcaList[$dcaid]->Label;
+					// Keep users from attempting to overwrite shit like devicetype
+					if(!isset($dev->$label)){
+						$dev->$label=$val;
+					}
+				}
+				unset($dev->CustomValues);
+			}
 		}
 		if($filterrights){
 			$dev->FilterRights();
@@ -1561,11 +1574,11 @@ class Device {
 		return $this->DeviceID;
 	}
 
-	function CopyDevice($clonedparent=null) {
+	function CopyDevice($clonedparent=null,$newPosition=null) {
 		/*
 		 * Need to make a copy of a device for the purpose of assigning a reservation during a move
 		 *
-		 * The second paremeter is optional for a copy.  if it is set and the device is a chassis
+		 * The second parameter is optional for a copy.  If it is set and the device is a chassis
 		 * this should be set to the ID of the new parent device.
 		 *
 		 * Also do not copy any power or network connections!
@@ -1576,6 +1589,13 @@ class Device {
 		
 		// If this is a chassis device then check for children to cloned BEFORE we change the deviceid
 		if($this->DeviceType=="Chassis"){
+			// Examine the name to try to make a smart decision about the naming
+			if ( preg_match("/(.+?[\[?\(]?)(\d+)-(\d+)([\)\]])?/", $this->Label, $tmpName ) ) {
+				$numLen = strlen($tmpName[3]);
+				$this->Label = sprintf( "%s%0".$numLen."d-%0".$numLen."d%s", $tmpName[1], $tmpName[3]+1, $tmpName[3]+($tmpName[3]-$tmpName[2]+1), @$tmpName[4]);
+			} else {
+				$this->Label = $this->Label . " (" . __("Copy") . ")";
+			}
 			$childList=$this->GetDeviceChildren();
 		}	
 
@@ -1589,6 +1609,7 @@ class Device {
 			$tmpdev=new Device();
 			$tmpdev->DeviceID=$this->ParentDevice;
 			$tmpdev->GetDevice();
+			preg_match("/(.+?[\[?\(]?)(\d+)-(\d+)([\)\]])?/", $tmpdev->Label, $tmpName);
 			$children=$tmpdev->GetDeviceChildren();
 			if($tmpdev->ChassisSlots>0 || $tmpdev->RearChassisSlots>0){
 				// If we're cloning every child then there is no need to attempt to find empty slots
@@ -1627,6 +1648,10 @@ class Device {
 					$olddev=new Device();
 					$olddev->DeviceID=$this->DeviceID;
 					$olddev->GetDevice();
+					if ( preg_match("/(.*)(.\d)+(\ *[\]|\)])?/", $olddev->Label, $tmpChild ) ) {
+						$numLen = strlen($tmpChild[2]);
+						$this->Label = sprintf( "%s%0".$numLen."d%s", $tmpChild[1], $tmpChild[2]+sizeof($children), @$tmpChild[3]);
+					}
 					$this->CreateDevice();
 					$olddev->CopyDeviceCustomValues($this);
 				}else{
@@ -1639,7 +1664,11 @@ class Device {
 			$cab=new Cabinet();
 			$cab->CabinetID=$this->Cabinet;
 			$cab->GetCabinet();
-			$this->Position=$cab->CabinetHeight+1;
+			if ( $newPosition == null ) {
+				$this->Position=$cab->CabinetHeight+1;
+			} else {
+				$this->Position = $newPosition;
+			}
 
 			$olddev=new Device();
 			$olddev->DeviceID=$this->DeviceID;
@@ -2933,7 +2962,6 @@ class Device {
 				$parentDetails->zoomX=1;
 				$parentDetails->zoomY=1;
 			}
-
 			// Check for slot orientation before we possibly modify it via height
 			$hor_slot=($slot->W>$slot->H);
 
@@ -3136,7 +3164,9 @@ class Device {
 			$childList=$this->GetDeviceChildren();
 
 			// Edge case where someone put more devices in a tray than they specified it slots
-			$this->ChassisSlots=(($templ->Model=='HTRAY' || $templ->Model=='VTRAY') && $this->ChassisSlots>=count($childList))?$this->ChassisSlots:count($childList);
+			if(($templ->Model=='HTRAY' || $templ->Model=='VTRAY') || ($this->ChassisSlots<count($childList))){
+				$this->ChassisSlots=count($childList);
+			}
 			if (count($childList)>0){
 				if(($this->ChassisSlots >0 && !$rear) || ($this->RearChassisSlots >0 && $rear) || ($templ->Model=='HTRAY' || $templ->Model=='VTRAY')){
 					//children in front face
@@ -3989,6 +4019,44 @@ class DevicePorts {
 		
 		return $portList;
 	}
+
+	function Search($indexedbyid=false,$loose=false){
+		global $dbh;
+		// Store any values that have been added before we make them safe 
+		foreach($this as $prop => $val){
+			if(isset($val)){
+				$o[$prop]=$val;
+			}
+		}
+
+		// Make everything safe for us to search with
+		$this->MakeSafe();
+
+		// This will store all our extended sql
+		$sqlextend="";
+		foreach($o as $prop => $val){
+			extendsql($prop,$this->$prop,$sqlextend,$loose);
+		}
+		$sql="SELECT * FROM fac_Ports $sqlextend ORDER BY DeviceID, PortNumber ASC;";
+
+		$portList=array();
+
+		foreach($dbh->query($sql) as $portRow){
+			if($indexedbyid){
+				$portList[$portRow["DeviceID"].$portRow["PortNumber"]]=DevicePorts::RowToObject($portRow);
+			}else{
+				$portList[]=DevicePorts::RowToObject($portRow);
+			}
+		}
+
+		return $portList;
+	}
+
+	// Make a simple reference to a loose search
+	function LooseSearch($indexedbyid=false){
+		return $this->Search($indexedbyid,true);
+	}
+
 }
 
 class ESX {
@@ -4012,6 +4080,7 @@ class ESX {
 	var $vmName;
 	var $vmState;
 	var $Owner;
+	var $PrimaryContact;
   
 	static function RowToObject($dbRow){
 		/*
@@ -4027,6 +4096,7 @@ class ESX {
 		$vm->vmName=$dbRow["vmName"];
 		$vm->vmState=$dbRow["vmState"];
 		$vm->Owner=$dbRow["Owner"];
+		$vm->PrimaryContact=$dbRow["PrimaryContact"];
 
 		return $vm;
 	}
@@ -4156,7 +4226,7 @@ class ESX {
 	function UpdateVMOwner() {
 		global $dbh;
 
-		$sql="UPDATE fac_VMInventory SET Owner=$this->Owner WHERE VMIndex=$this->VMIndex;";
+		$sql="UPDATE fac_VMInventory SET Owner=$this->Owner, PrimaryContact=$this->PrimaryContact WHERE VMIndex=$this->VMIndex;";
 		$dbh->query($sql);
 	} 
   
@@ -5177,7 +5247,7 @@ class DeviceCustomAttribute {
 	var $DefaultValue;
 
 	function MakeSafe() {
-		$validtypes=array("string","number","integer","date","phone","email","ipv4","url","checkbox");
+		$validtypes=array("string","number","integer","date","phone","email","ipv4","url","checkbox","set");
 
 		$this->AttributeID=intval($this->AttributeID);
 		$this->Label=sanitize($this->Label);
@@ -5221,6 +5291,21 @@ class DeviceCustomAttribute {
 				case "checkbox":
 					$acceptable = array("0", "1", "true", "false", "on", "off");
 					if(!in_array($this->DefaultValue, $acceptable)) { return false; }		
+					break;
+				case "set":
+					// Attempt to stem S.U.T. here
+					// will track if we want a blank space at the beginning of our list
+					$blankstart=substr($this->DefaultValue,0,1)==',';
+					// will store an array of our stuff
+					$dirtyarray=array();
+					// parse the list combining / removing duplicates
+					foreach(explode(',',$this->DefaultValue) as $item){
+						$dirtyarray[$item]=$item;
+					}
+					// trim possible leading blank spaces / other blanks
+					if(!$blankstart){unset($dirtyarray['']);}
+					// condense back to csv
+					$this->DefaultValue=implode(',',$dirtyarray);
 					break;
 			}
 		}
@@ -5373,7 +5458,7 @@ class DeviceCustomAttribute {
 	}
 
 	static function GetDeviceCustomAttributeTypeList() {
-		$validtypes=array("string","number","integer","date","phone","email","ipv4","url","checkbox");
+		$validtypes=array("string","number","integer","date","phone","email","ipv4","url","checkbox","set");
 
 		return $validtypes;
 	}	

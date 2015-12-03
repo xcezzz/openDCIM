@@ -135,7 +135,7 @@ function renderUnassignedTemplateOwnership($noTemplFlag, $noOwnerFlag, $device) 
 
 	// You just have WriteAccess in order to perform/certify a rack audit
 	if(isset($_POST["audit"]) && $_POST["audit"]=="yes" && $person->CanWrite($cab->AssignedTo)){
-		$audit->Comments=sanitize($_POST["comment"]);
+		$audit->Comments=sanitize($_POST["comments"]);
 		// Log the response
 		$audit->CertifyAudit();
 
@@ -571,7 +571,7 @@ echo $head,'  <script type="text/javascript" src="scripts/jquery.min.js"></scrip
 ';
 if( $config->ParameterArray["ToolTips"]=='enabled' ){
 ?>
-		$('.cabinet td:has(a):not(:has(img)), #zerou div > a, .cabinet .picture a img, .cabinet .picture a > div').mouseenter(function(){
+		$('.cabinet div[id^="servercontainer"], #infopanel').on('mouseenter', 'div > div.genericdevice, div > div a > img, #zerou div > a', function(){
 			var lblbtn=$('.cabinet tr:first-child button + button');
 			var srctest=(typeof $(this).attr('src')==="undefined")?'css/blank.gif':$(this).attr('src');
 			if(srctest!='css/blank.gif'){
