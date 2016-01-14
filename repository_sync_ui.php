@@ -47,6 +47,9 @@
 	.change .good { color: green; border: 1px dotted grey; }
 	.imagepreview img { max-height: 100%;max-width: 100%; }
 	.hiddenports > div { display: inline-block; vertical-align: top; }
+	.imagegoeshere { position: relative; }
+	.slotcover { position: absolute; border: 1px solid; border-color: rgba(255,0,0,0.5); }
+	.slotcover span { background-color: white; border: 1px solid black; padding: 1px; }
 
 	.ui-tooltip, .arrow:after {
 		background: white;
@@ -221,6 +224,11 @@ function convertImgToBase64(url, imgobj) {
 				return false;
 			}
 
+			// Make the template name into a link for easy reference
+			if(type=="LocalID"){
+				row['Model'].html('<a href="device_templates.php?TemplateID='+dev.TemplateID+'" target="template">'+row['Model'].text()+'</a>');
+			}
+
 			// Extend the table row by one field for a button to create/sync/push this template
 			row['command']=$('<div>').appendTo(row);
 			// Create button for btn_command
@@ -254,12 +262,105 @@ function convertImgToBase64(url, imgobj) {
 				});
 			});
 
+			// Make a dialog to show how the slots are laid out
+			row['Front']=$('<div>').addClass('hiddenports');
+			row.ChassisSlots.click(function(e){
+				row['Front'].dialog({
+					width: 740,
+					modal: true,
+					open: function(){
+						$('.ui-widget-overlay').bind('click',function(){
+							row['Front'].dialog('close');
+						});
+
+						// clone the current device image
+						row['Front'].find('.imagegoeshere').each(function(){
+							var img=row['FrontPictureFile'].find('img').clone().css('width','400px');
+							$(this).html(img);
+							// stupid browser won't give a size until the image loads
+							img.on('load',function(e){
+								var ratio=img[0].width/img[0].naturalWidth;
+								var table=img.parent('div').next('div').find('.table');
+								table.find('> div:nth-child(2) ~ div').each(function(e){
+									var num=this.childNodes[0].textContent;
+									var x=parseInt(this.childNodes[1].textContent);
+									var y=parseInt(this.childNodes[2].textContent);
+									var w=parseInt(this.childNodes[3].textContent);
+									var h=parseInt(this.childNodes[4].textContent);
+									var slotcover=$('<div>').css({
+										'left':x*ratio+'px',
+										'top':y*ratio+'px',
+										'width':w*ratio+'px',
+										'height':h*ratio+'px'
+									}).addClass('slotcover');
+									slotcover.append($('<span>').text(num));
+									img.parent('div').append(slotcover);
+									// add a mouseover for this to highlight slotcover
+									$(this).on('mouseover',function(e){
+										slotcover.effect("highlight",{color:"#ff0000"},1000,false);
+									});
+								});
+							});
+						});
+
+
+					}
+				});
+			});
+
+			// Make a dialog to show how the slots are laid out
+			row['Rear']=$('<div>').addClass('hiddenports');
+			row.RearChassisSlots.click(function(e){
+				row['Rear'].dialog({
+					width: 740,
+					modal: true,
+					open: function(){
+						$('.ui-widget-overlay').bind('click',function(){
+							row['Front'].dialog('close');
+						});
+
+						// clone the current device image
+						row['Rear'].find('.imagegoeshere').each(function(){
+							var img=row['RearPictureFile'].find('img').clone().css('width','400px');
+							$(this).html(img);
+							// stupid browser won't give a size until the image loads
+							img.on('load',function(e){
+								var ratio=img[0].width/img[0].naturalWidth;
+								var table=img.parent('div').next('div').find('.table');
+								table.find('> div:nth-child(2) ~ div').each(function(e){
+									var num=this.childNodes[0].textContent;
+									var x=parseInt(this.childNodes[1].textContent);
+									var y=parseInt(this.childNodes[2].textContent);
+									var w=parseInt(this.childNodes[3].textContent);
+									var h=parseInt(this.childNodes[4].textContent);
+									var slotcover=$('<div>').css({
+										'left':x*ratio+'px',
+										'top':y*ratio+'px',
+										'width':w*ratio+'px',
+										'height':h*ratio+'px'
+									}).addClass('slotcover');
+									slotcover.append($('<span>').text(num));
+									img.parent('div').append(slotcover);
+									// add a mouseover for this to highlight slotcover
+									$(this).on('mouseover',function(e){
+										slotcover.effect("highlight",{color:"#ff0000"},1000,false);
+									});
+								});
+							});
+						});
+					}
+				});
+			});
+
 			// Store the ports at the row level for easy access later
 			(type=='GlobalID')?row.data('globaldataports',dev.ports):row.data('localdataports',dev.ports);
 			(type=='GlobalID')?row.data('globalpowerports',dev.powerports):row.data('localpowerports',dev.powerports);
+			(type=='GlobalID')?row.data('globalslots',dev.slots):row.data('localslots',dev.slots);
 			// Add the data ports table to the dialog made above
 			MakePortsTable(dev.ports,row,'Repository','data');
 			MakePortsTable(dev.powerports,row,'Repository','power');
+			MakeSlotsTable(dev.slots,row,'Repository','front');
+			MakeSlotsTable(dev.slots,row,'Repository','rear');
 
 			// Call page resize function since we just inserted something to the dom
 			resize();
@@ -361,6 +462,9 @@ function convertImgToBase64(url, imgobj) {
 						// Ports, slots, pictures, etc
 
 						if(postorput==='put'){
+							// Linkify the template name
+							row.data('object')['Model'].html('<a href="device_templates.php?TemplateID='+data.devicetemplate.TemplateID+'" target="template">'+row.data('object')['Model'].text()+'</a>');
+
 							// Add front image
 							if(row.data("globaldev").FrontPictureFile!=''){
 								AddImage(row.FrontPictureFile.find('img').data('file'));
@@ -377,6 +481,11 @@ function convertImgToBase64(url, imgobj) {
 							}
 							for(var i in row.data("globalpowerports")){
 								$.ajax({type: postorput,url: 'api/v1/devicetemplate/'+data.devicetemplate.TemplateID+'/powerport/'+(parseInt(i)+1),async: false,data: row.data("globalpowerports")[i]}).complete(function(data){});
+							}
+
+							// Create slots
+							for(var i in row.data("globalslots")){
+								$.ajax({type: postorput,url: 'api/v1/devicetemplate/'+data.devicetemplate.TemplateID+'/slot/'+(parseInt(i)+1),async: false,data: row.data("globalslots")[i]}).complete(function(data){});
 							}
 						}else{
 							row.removeClass('change');
@@ -463,6 +572,53 @@ function convertImgToBase64(url, imgobj) {
 			}
 		}
 
+		/*
+		 * Simple function to generate a table to display the device image
+		 * and a small table of the slot coordinates
+		 *
+		 * slotss: array of slots
+		 * insertTarget: jquery row object
+		 * label: Local or Repository
+		 * type: front or rear
+		 */
+
+		function MakeSlotsTable(slots,insertTarget,label,type){
+			// Make a table to embed in the dialog we established above 
+			var tbl_slots=$('<div>').addClass('table');
+			var slottype=(type=='front')?'Front':'Rear';
+			insertTarget[slottype].append(tbl_slots);
+			var imgholder=$('<div>',{'class':'imagegoeshere'}).insertBefore(tbl_slots);
+			// wrap the table with another div so we can do an inline-block
+			tbl_slots.wrap('<div></div>');
+			var linebreak=$('<div>').css('width','100%').addClass('clear');
+			insertTarget[slottype].append(linebreak);
+			var portheader=$('<div>');
+			$('<div>').text('Position').appendTo(portheader);
+			$('<div>').text('X').appendTo(portheader);
+			$('<div>').text('Y').appendTo(portheader);
+			$('<div>').text('W').appendTo(portheader);
+			$('<div>').text('H').appendTo(portheader);
+			tbl_slots.append(portheader);
+			$('<div>').text(label).addClass('caption').appendTo(tbl_slots);
+			if(typeof slots!='undefined'){
+				for(var i in slots){
+					if(slottype=='Front' && slots[i].BackSide==1){
+						continue;
+					}
+					if(slottype=='Rear' && slots[i].BackSide==0){
+						continue;
+					}
+					var slotrow=$('<div>');
+					$('<div>').text(slots[i].Position).appendTo(slotrow);
+					$('<div>').text(slots[i].X).appendTo(slotrow);
+					$('<div>').text(slots[i].Y).appendTo(slotrow);
+					$('<div>').text(slots[i].W).appendTo(slotrow);
+					$('<div>').text(slots[i].H).appendTo(slotrow);
+					tbl_slots.append(slotrow);
+				}
+			}
+		}
+
 		function PullLocalTemplates(){
 			$.get('api/v1/devicetemplate?ManufacturerID='+$('#slct_ManufacturerID').val()).done(function(data){
 				if(!data.error){
@@ -486,50 +642,70 @@ function convertImgToBase64(url, imgobj) {
 							// Store the template at the row level so we have easy access later
 							row.data('localdev',data.devicetemplate[i]);
 							$.ajax({url:'api/v1/devicetemplate/'+data.devicetemplate[i].TemplateID+'/dataport',type:'get',async:false}).done(function(data){
-								row.data('localdataports',data.dataports);
-								MakePortsTable(data.dataports,row,'Local','data');
+								row.data('localdataports',data.dataport);
+								MakePortsTable(data.dataport,row,'Local','data');
 							});
 							$.ajax({url:'api/v1/devicetemplate/'+data.devicetemplate[i].TemplateID+'/powerport',type:'get',async:false}).done(function(data){
-								row.data('localpowerports',data.powerports);
-								MakePortsTable(data.powerports,row,'Local','power');
+								row.data('localpowerports',data.powerport);
+								MakePortsTable(data.powerport,row,'Local','power');
 							});
+							if(data.devicetemplate[i].ChassisSlots>0 || data.devicetemplate[i].RearChassisSlots>0){
+								$.ajax({url: 'api/v1/devicetemplate/'+data.devicetemplate[i].TemplateID+'/slot', type:'get',async: false}).done(function(data){
+									// Make these into a single list and a standard array
+									var frontslots=(typeof data.slot[0]!='undefined')?data.slot[0]:{};
+									var rearslots=(typeof data.slot[1]!='undefined')?data.slot[1]:{};
+									frontslots=Object.keys(frontslots).map(function (key) {return frontslots[key]});
+									rearslots=Object.keys(rearslots).map(function (key) {return rearslots[key]});
+									row.data('localslots', frontslots.concat(rearslots));
+									MakeSlotsTable(frontslots.concat(rearslots),row,'Local','front');
+									MakeSlotsTable(frontslots.concat(rearslots),row,'Local','rear');
+								});
+							}
 							// Make sure we have a button first, then add the click functionality to it
 							if(typeof btn_command!='undefined'){
 								btn_command.unbind('click').click(function(e){
 									pulltoapi($(e.currentTarget.parentElement.parentElement).data('object'));
 								});
 							}
+
+							// Make the template name into a link for easy reference
+							row['Model'].html('<a href="device_templates.php?TemplateID='+data.devicetemplate[i].TemplateID+'" target="template">'+row['Model'].text()+'</a>');
 						}else{
 							// compare to existing templates that might match, or add a new row
 							var row=MakeRow(data.devicetemplate[i],'LocalID');
 							if(data.devicetemplate[i].NumPorts>0){
 								$.ajax({url: 'api/v1/devicetemplate/'+data.devicetemplate[i].TemplateID+'/dataport', type:'get',async: false}).done(function(data){
-									row.data('localdataports',data.dataports);
-									MakePortsTable(data.dataports,row,'Local','data');
+									row.data('localdataports',data.dataport);
+									MakePortsTable(data.dataport,row,'Local','data');
 								});
 							}
 							if(data.devicetemplate[i].PSCount>0){
 								$.ajax({url: 'api/v1/devicetemplate/'+data.devicetemplate[i].TemplateID+'/powerport', type:'get',async: false}).done(function(data){
-									row.data('localpowerports',data.powerports);
-									MakePortsTable(data.powerports,row,'Local','power');
+									row.data('localpowerports',data.powerport);
+									MakePortsTable(data.powerport,row,'Local','power');
 								});
 							}
 							if(data.devicetemplate[i].ChassisSlots>0 || data.devicetemplate[i].RearChassisSlots>0){
-								$.ajax({url: 'api/v1/devicetemplate/'+data.devicetemplate[i].TemplateID+'/slots', type:'get',async: false}).done(function(data){
+								$.ajax({url: 'api/v1/devicetemplate/'+data.devicetemplate[i].TemplateID+'/slot', type:'get',async: false}).done(function(data){
 									// Make these into a single list and a standard array
-									var frontslots=(typeof data.slots[0]!='undefined')?data.slots[0]:{};
-									var rearslots=(typeof data.slots[1]!='undefined')?data.slots[1]:{};
+									var frontslots=(typeof data.slot[0]!='undefined')?data.slot[0]:{};
+									var rearslots=(typeof data.slot[1]!='undefined')?data.slot[1]:{};
 									frontslots=Object.keys(frontslots).map(function (key) {return frontslots[key]});
 									rearslots=Object.keys(rearslots).map(function (key) {return rearslots[key]});
 									row.data('localslots', frontslots.concat(rearslots));
-	//								MakeDataPortsTable(data.dataports,row,'Local');
+									MakeSlotsTable(frontslots.concat(rearslots),row,'Local','front');
+									MakeSlotsTable(frontslots.concat(rearslots),row,'Local','rear');
 								});
 							}
 							var btn_command=row['command'].find('button');
-							// Bind a click event to the button
-							btn_command.text('push').click(function(e){
-								pushtorepo($(e.currentTarget.parentElement.parentElement).data('object'));
-							});
+							if(window.APIKey=="" || window.UserID==""){
+								btn_command.hide();
+							}else{
+								// Bind a click event to the button
+								btn_command.text('push').click(function(e){
+									pushtorepo($(e.currentTarget.parentElement.parentElement).data('object'));
+								});
+							}
 						}
 					}
 				}

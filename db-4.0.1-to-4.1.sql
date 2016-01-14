@@ -32,6 +32,27 @@ ALTER TABLE fac_PowerPorts ADD INDEX (Notes);
 ALTER TABLE fac_VMInventory ADD COLUMN PrimaryContact int(11) NOT NULL;
 
 --
+-- Clean up the db to remove no longer used elements
+--
+
+ALTER TABLE fac_Cabinet DROP COLUMN SensorIPAddress;
+ALTER TABLE fac_Cabinet DROP COLUMN SensorCommunity;
+ALTER TABLE fac_Cabinet DROP COLUMN SensorTemplateID;
+
+--
+-- Add in new parameter to control whether or not to filter the cabinet listing (Disable for Performance Boost on large installs)
+--
+
+INSERT INTO fac_Config SET Parameter='FilterCabinetList', Value='Enabled', UnitOfMeasure='Enabled/Disabled', ValType='string', DefaultVal='Enabled';
+
+--
+-- Finally change the cost model from annual cost per Watt to straight up Cost per KwHr
+--
+
+DELETE FROM fac_Config WHERE Parameter="annualCostPerWattYear";
+INSERT INTO fac_Config SET Parameter='CostPerKwHr', Value='.25', UnitOfMeasure='Currency', ValType='float', DefaultVal='.25';
+
+--
 -- Bump up the database version
 --
 -- UPDATE fac_Config set Value='4.1' WHERE Parameter='Version';

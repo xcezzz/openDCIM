@@ -43,9 +43,6 @@ class Cabinet {
 	var $MaxKW;
 	var $MaxWeight;
 	var $InstallationDate;
-	var $SensorIPAddress;
-	var $SensorCommunity;
-	var $SensorTemplateID;
 	var $MapX1;
 	var $MapY1;
 	var $MapX2;
@@ -68,9 +65,6 @@ class Cabinet {
 		$this->MaxKW=floatval($this->MaxKW);
 		$this->MaxWeight=intval($this->MaxWeight);
 		$this->InstallationDate=date("Y-m-d", strtotime($this->InstallationDate));
-		$this->SensorIPAddress=sanitize($this->SensorIPAddress);
-		$this->SensorCommunity=sanitize($this->SensorCommunity);
-		$this->SensorTemplateID=intval($this->SensorTemplateID);
 		$this->MapX1=abs($this->MapX1);
 		$this->MapY1=abs($this->MapY1);
 		$this->MapX2=abs($this->MapX2);
@@ -106,9 +100,6 @@ class Cabinet {
 		$cab->MaxKW=$dbRow["MaxKW"];
 		$cab->MaxWeight=$dbRow["MaxWeight"];
 		$cab->InstallationDate=$dbRow["InstallationDate"];
-		$cab->SensorIPAddress=$dbRow["SensorIPAddress"];
-		$cab->SensorCommunity=$dbRow["SensorCommunity"];
-		$cab->SensorTemplateID=$dbRow["SensorTemplateID"];
 		$cab->MapX1=$dbRow["MapX1"];
 		$cab->MapY1=$dbRow["MapY1"];
 		$cab->MapX2=$dbRow["MapX2"];
@@ -119,6 +110,9 @@ class Cabinet {
 
 		if($filterrights){
 			$cab->FilterRights();
+		} else {
+			// Assume that you can read everything if there's no FilterRights call.
+			$cab->Rights = "Read";
 		}
 
 		if($cab->U1Position=="Default"){
@@ -165,9 +159,8 @@ class Cabinet {
 			CabinetHeight=$this->CabinetHeight, Model=\"$this->Model\", 
 			Keylock=\"$this->Keylock\", MaxKW=$this->MaxKW, MaxWeight=$this->MaxWeight, 
 			InstallationDate=\"".date("Y-m-d", strtotime($this->InstallationDate))."\", 
-			SensorIPAddress=\"$this->SensorIPAddress\", MapX1=$this->MapX1, 
-			SensorCommunity=\"$this->SensorCommunity\", MapY1=$this->MapY1, 
-			SensorTemplateID=$this->SensorTemplateID, MapX2=$this->MapX2, MapY2=$this->MapY2,
+			MapX1=$this->MapX1, MapY1=$this->MapY1, 
+			MapX2=$this->MapX2, MapY2=$this->MapY2,
 			FrontEdge=\"$this->FrontEdge\", Notes=\"$this->Notes\", 
 			U1Position=\"$this->U1Position\";";
 
@@ -199,9 +192,8 @@ class Cabinet {
 			CabinetHeight=$this->CabinetHeight, Model=\"$this->Model\", 
 			Keylock=\"$this->Keylock\", MaxKW=$this->MaxKW, MaxWeight=$this->MaxWeight, 
 			InstallationDate=\"".date("Y-m-d", strtotime($this->InstallationDate))."\", 
-			SensorIPAddress=\"$this->SensorIPAddress\", MapX1=$this->MapX1, 
-			SensorCommunity=\"$this->SensorCommunity\", MapY1=$this->MapY1, 
-			SensorTemplateID=$this->SensorTemplateID, MapX2=$this->MapX2, MapY2=$this->MapY2,
+			MapX1=$this->MapX1, MapY1=$this->MapY1, 
+			MapX2=$this->MapX2, MapY2=$this->MapY2,
 			FrontEdge=\"$this->FrontEdge\", Notes=\"$this->Notes\", 
 			U1Position=\"$this->U1Position\" WHERE CabinetID=$this->CabinetID;";
 
@@ -244,7 +236,8 @@ class Cabinet {
 		$sql="SELECT * FROM fac_Cabinet ORDER BY $orderbydc LocationSortable ASC;";
 
 		foreach($dbh->query($sql) as $cabinetRow){
-			$cabinetList[]=Cabinet::RowToObject($cabinetRow);
+			$filter = $config->ParameterArray["FilterCabinetList"] == 'Enabled' ? true:false;
+			$cabinetList[]=Cabinet::RowToObject($cabinetRow, $filter);
 		}
 
 		return $cabinetList;
@@ -717,14 +710,23 @@ class CabinetMetrics {
 		}
 
 		// Now the devices in the cabinet
-		$sql = "select sum(a.NominalWatts) as Power, sum(a.Height) as SpaceUsed, sum(b.Weight) as Weight from fac_Device a, fac_DeviceTemplate b where a.TemplateID=b.TemplateID and Cabinet=:CabinetID and HalfDepth=0";
+		// Watts needs to count ALL devices
+		$sql = "select sum(a.NominalWatts) as Power, sum(a.Height) as SpaceUsed, sum(b.Weight) as Weight from fac_Device a, fac_DeviceTemplate b where a.TemplateID=b.TemplateID and Cabinet=:CabinetID";
 		$st = $dbh->prepare( $sql );
 		$st->execute( $params );
 		if ( $row = $st->fetch() ) {
 			$m->CalculatedPower = $row["Power"];
 			$m->CalculatedWeight = $row["Weight"];
-			$m->SpaceUsed = $row["SpaceUsed"];
 		}
+
+		// Space needs to only count devices that are not children of other devices (slots in a chassis)
+		$sql = "select sum(if(HalfDepth,Height/2,Height)) as SpaceUsed from fac_Device where Cabinet=:CabinetID and ParentDevice=0";
+		$st = $dbh->prepare( $sql );
+		$st->execute( $params );
+		if ( $row = $st->fetch() ) {
+					$m->SpaceUsed = $row["SpaceUsed"];
+		}
+
 		
 		// And finally the power readings
 		$sql = "select sum(Wattage) as Power from fac_PDUStats where PDUID in (select DeviceID from fac_Device where DeviceType='CDU' and Cabinet=:CabinetID)";
@@ -1415,6 +1417,9 @@ class Device {
 		}
 		if($filterrights){
 			$dev->FilterRights();
+		} else {
+			// Assume that you can read everything if the rights filtering is turned off
+			$dev->Rights='Read';
 		}
 
 		return $dev;
@@ -1654,6 +1659,7 @@ class Device {
 					}
 					$this->CreateDevice();
 					$olddev->CopyDeviceCustomValues($this);
+					$this->DuplicateTags( $olddev->DeviceID );
 				}else{
 					return false;
 				}
@@ -1677,6 +1683,7 @@ class Device {
 			// And finally create a new device based on the exact same info
 			$this->CreateDevice();
 			$olddev->CopyDeviceCustomValues($this);
+			$this->DuplicateTags( $olddev->DeviceID );
 		}
 
 		// If this is a chassis device and children are present clone them
@@ -1703,6 +1710,12 @@ class Device {
 			}
 			return true;
 		} else { return false; }
+	}
+
+	function DuplicateTags( $sourceDeviceID ) {
+		global $dbh;
+
+		$dbh->exec( "insert ignore into fac_DeviceTags (DeviceID, TagID) select '" . $this->DeviceID . "', TagID from fac_DeviceTags where DeviceID='" . $sourceDeviceID . "'");
 	}
 	
 	function IncrementFailures(){
@@ -1802,6 +1815,24 @@ class Device {
 			return false;
 		}		
 
+		if($tmpDev->Cabinet!=$this->Cabinet){
+			$cab=new Cabinet();
+			$cab->CabinetID=$this->Cabinet;
+			$cab->GetCabinet();
+			// Make sure the user has rights to save a device into the new cabinet
+			if($cab->Rights!="Write"){return false;}
+		}
+
+		// Everything after this point you already know that the Person has rights to make changes
+
+		// A child device's cabinet must always match the parent so force it here
+		if($this->ParentDevice){
+			$parent=new Device();
+			$parent->DeviceID=$this->ParentDevice;
+			$parent->GetDevice();
+			$this->Cabinet=$parent->Cabinet;
+		}
+
 		// Force all uppercase for labels
 		$this->Label=transform($this->Label);
 		$this->SerialNo=transform($this->SerialNo);
@@ -1822,6 +1853,7 @@ class Device {
 			WarrantyExpire=\"".date("Y-m-d", strtotime($this->WarrantyExpire))."\", Notes=\"$this->Notes\", 
 			Reservation=$this->Reservation, HalfDepth=$this->HalfDepth, BackSide=$this->BackSide WHERE DeviceID=$this->DeviceID;";
 
+
 		// If the device won't update for some reason there is no cause to touch anything else about it
 		if(!$dbh->query($sql)){
 			$info=$dbh->errorInfo();
@@ -1829,19 +1861,9 @@ class Device {
 			return false;
 		}
 		
-		// If you changed cabinets then the power connections need to be removed
-		if($tmpDev->Cabinet!=$this->Cabinet){
-			$cab=new Cabinet();
-			$cab->CabinetID=$this->Cabinet;
-			$cab->GetCabinet();
-			// Make sure the user has rights to save a device into the new cabinet
-			if($cab->Rights!="Write"){return false;}
-
-			// They have rights to do this so clear the power connections now
-			$powercon=new PowerConnection();
-			$powercon->DeviceID=$this->DeviceID;
-			$powercon->DeleteConnections();
-		}
+		// Clear the power connections
+		
+		PowerPorts::removeConnections($this->DeviceID);
   
 		if($tmpDev->DeviceType == "Chassis" && $tmpDev->DeviceType != $this->DeviceType){
 			// SUT #148 - Previously defined chassis is no longer a chassis
@@ -2361,6 +2383,7 @@ class Device {
 
 	function Search($indexedbyid=false,$loose=false){
 		global $dbh;
+		$o=array();
 		// Store any values that have been added before we make them safe 
 		foreach($this as $prop => $val){
 			if(isset($val)){
@@ -4022,6 +4045,7 @@ class DevicePorts {
 
 	function Search($indexedbyid=false,$loose=false){
 		global $dbh;
+		$o=array();
 		// Store any values that have been added before we make them safe 
 		foreach($this as $prop => $val){
 			if(isset($val)){

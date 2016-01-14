@@ -1505,6 +1505,17 @@ echo '<div class="main">
 					</div>
 				</div>
 			</div> <!-- end table -->
+			<h3>',__("Site Level Security Options"),'</h3>
+			<div class="table">
+				<div>
+					<div><label for="FilterCabinetList">',__("Filter Cabinet List"),'</label></div>
+					<div><select id="FilterCabinetList" name="FilterCabinetList" defaultvalue="',$config->defaults["FilterCabinetList"],'" data="',$config->ParameterArray["FilterCabinetList"],'">
+							<option value="disabled">',__("Disabled"),'</option>
+							<option value="enabled">',__("Enabled"),'</option>
+						</select>
+					</div>
+				</div>
+			</div> <!-- end table -->			
 			<h3>',__("Rack Requests"),'</h3>
 			<div class="table">
 				<div>
@@ -1727,8 +1738,8 @@ echo '<div class="main">
 					<div><input type="text" defaultvalue="',$config->defaults["annualCostPerUYear"],'" name="annualCostPerUYear" value="',$config->ParameterArray["annualCostPerUYear"],'"></div>
 				</div>
 				<div>
-					<div><label for="annualCostPerWattYear">',__("Annual Cost Per Watt (Year)"),'</label></div>
-					<div><input type="text" defaultvalue="',$config->defaults["annualCostPerWattYear"],'" name="annualCostPerWattYear" value="',$config->ParameterArray["annualCostPerWattYear"],'"></div>
+					<div><label for="CostPerKwHr">',__("Cost Per KwHr"),'</label></div>
+					<div><input type="text" defaultvalue="',$config->defaults["CostPerKwHr"],'" name="CostPerKwHr" value="',$config->ParameterArray["CostPerKwHr"],'"></div>
 				</div>
 				<div>
 					<div><label for="PDFLogoFile">',__("Logo file for headers"),'</label></div>
