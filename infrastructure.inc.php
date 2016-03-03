@@ -1607,7 +1607,7 @@ class Manufacturer {
 		$ManufacturerList=array();
 		foreach($this->query($sql) as $row){
 			if($indexbyid){
-				$ManufacturerList[$row['ManufacturerID']]=Manufacturer::RowToObject($row);
+				$ManufacturerList[$row['GlobalID']]=Manufacturer::RowToObject($row);
 			}else{
 				$ManufacturerList[]=Manufacturer::RowToObject($row);
 			}

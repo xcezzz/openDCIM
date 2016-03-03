@@ -433,7 +433,7 @@ function convertImgToBase64(url, imgobj) {
 			// Find the local manufacturer id from the global value
 			for(var key in arr_localmanf){
 				if(arr_localmanf[key] === row.data("globaldev").ManufacturerID){
-					row.data("globaldev").ManufacturerID=key;
+					row.data("globaldev").ManufacturerID=arr_localmanf[key];
 				}
 			}
 
